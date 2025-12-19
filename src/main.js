@@ -1,5 +1,14 @@
 import * as THREE from "three";
 
+// iOS Safari viewport height fix
+function setVH() {
+  const vv = window.visualViewport;
+  const h = vv?.height ?? window.innerHeight;
+  document.documentElement.style.setProperty("--vh", `${h * 0.01}px`);
+}
+setVH();
+
+
 /* ======================
    Renderer + Scene
 ====================== */
@@ -63,20 +72,49 @@ function resizeToDisplaySize() {
   fx.setView(viewW, viewH);
 }
 
+function resizeToDisplaySize() {
+  const vv = window.visualViewport;
+
+  const width = Math.floor(vv?.width ?? window.innerWidth);
+  const height = Math.floor(vv?.height ?? window.innerHeight);
+
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(width, height, false);
+
+  const aspect = width / height;
+  viewW = viewH * aspect;
+
+  camera.left = -viewW / 2;
+  camera.right = viewW / 2;
+  camera.top = viewH / 2;
+  camera.bottom = -viewH / 2;
+  camera.updateProjectionMatrix();
+
+  // IMPORTANT: keep your existing controller name
+  portals.setView(viewW, viewH); // or fx.setView(...)
+}
+
 function onResize() {
+  setVH();
   resizeToDisplaySize();
 }
 
 window.addEventListener("resize", onResize);
 
-// iOS Safari rotation can lag; do a second pass
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", onResize);
+  window.visualViewport.addEventListener("scroll", onResize);
+}
+
 window.addEventListener("orientationchange", () => {
   setTimeout(onResize, 50);
   setTimeout(onResize, 250);
+  setTimeout(onResize, 600);
 });
 
-// Run once on load so Vercel/mobile starts correct
+// initial
 onResize();
+
 
 /* ======================
    Animate
