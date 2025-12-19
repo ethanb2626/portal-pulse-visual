@@ -1,4 +1,5 @@
 import * as THREE from "three";
+
 /* ======================
    Renderer + Scene
 ====================== */
@@ -6,44 +7,51 @@ const renderer = new THREE.WebGLRenderer({
   antialias: true,
   powerPreference: "high-performance",
 });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
+
 renderer.setClearColor(0x02060b, 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+document.body.style.margin = "0";
+document.body.style.overflow = "hidden";
+document.body.style.width = "100%";
+document.body.style.height = "100%";
+
 document.body.appendChild(renderer.domElement);
+
+// Make canvas truly fill the screen (important for iOS rotation)
+renderer.domElement.style.width = "100%";
+renderer.domElement.style.height = "100%";
+renderer.domElement.style.display = "block";
 
 const scene = new THREE.Scene();
 
 /* ======================
    Ortho Camera
 ====================== */
-let aspect = window.innerWidth / window.innerHeight;
 const viewH = 10;
-let viewW = viewH * aspect;
-
-const camera = new THREE.OrthographicCamera(
-  -viewW / 2,
-  viewW / 2,
-  viewH / 2,
-  -viewH / 2,
-  -100,
-  100
-);
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -100, 100);
 camera.position.z = 10;
 
 /* ======================
    FX
 ====================== */
+let viewW = viewH * (window.innerWidth / window.innerHeight);
 const fx = createPortalPulseFX({ scene, viewW, viewH });
 
 /* ======================
-   Resize
+   Robust Resize (mobile-safe)
 ====================== */
-function onResize() {
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setSize(window.innerWidth, window.innerHeight);
+function resizeToDisplaySize() {
+  const canvas = renderer.domElement;
 
-  aspect = window.innerWidth / window.innerHeight;
+  // Use actual on-screen size (fixes iOS Safari landscape/URL bar issues)
+  const width = Math.floor(canvas.clientWidth || window.innerWidth);
+  const height = Math.floor(canvas.clientHeight || window.innerHeight);
+
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(width, height, false);
+
+  const aspect = width / height;
   viewW = viewH * aspect;
 
   camera.left = -viewW / 2;
@@ -54,7 +62,21 @@ function onResize() {
 
   fx.setView(viewW, viewH);
 }
+
+function onResize() {
+  resizeToDisplaySize();
+}
+
 window.addEventListener("resize", onResize);
+
+// iOS Safari rotation can lag; do a second pass
+window.addEventListener("orientationchange", () => {
+  setTimeout(onResize, 50);
+  setTimeout(onResize, 250);
+});
+
+// Run once on load so Vercel/mobile starts correct
+onResize();
 
 /* ======================
    Animate
@@ -66,6 +88,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+
 
 /* ============================================================
    FX IMPLEMENTATION: global pulse (burst -> drift -> suck -> hold)
